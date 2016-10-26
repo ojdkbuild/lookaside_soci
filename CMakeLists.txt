@@ -31,7 +31,7 @@ colormsg(_HIBLUE_ "Configuring SOCI:")
 ###############################################################################
 include(SociVersion)
 
-soci_version(MAJOR 3 MINOR 2 PATCH 2)
+soci_version(MAJOR 3 MINOR 2 PATCH 3)
 
 ###############################################################################
 # Build features and variants
@@ -41,6 +41,9 @@ include(SociConfig)
 
 boost_report_value(SOCI_PLATFORM_NAME)
 boost_report_value(SOCI_COMPILER_NAME)
+
+option(SOCI_SHARED "Enable build of shared libraries" ON)
+boost_report_value(SOCI_SHARED)
 
 option(SOCI_STATIC "Enable build of static libraries" ON)
 boost_report_value(SOCI_STATIC)
