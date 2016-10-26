@@ -10,7 +10,7 @@
 #                       but not for general use are
 # ORACLE_VERSION     = version of library which was found, e.g. "1.2.5"
 #
-# Copyright (c) 2009 Mateusz Loskot <mateusz@loskot.net>
+# Copyright (c) 2009-2013 Mateusz Loskot <mateusz@loskot.net>
 #
 # Developed with inspiration from Petr Vanek <petr@scribus.info>
 # who wrote similar macro for TOra - http://torasql.com/
@@ -26,43 +26,44 @@
 if(DEFINED ENV{ORACLE_HOME})
 
   set(ORACLE_HOME $ENV{ORACLE_HOME})
+  message(STATUS "ORACLE_HOME=${ORACLE_HOME}")
 
   find_path(ORACLE_INCLUDE_DIR
-    oci.h
+    NAMES oci.h
     PATHS
     ${ORACLE_HOME}/rdbms/public
     ${ORACLE_HOME}/include
-    ${ORACLE_HOME}/sdk/include # Oracle SDK
+    ${ORACLE_HOME}/sdk/include  # Oracle SDK
     ${ORACLE_HOME}/OCI/include) # Oracle XE on Windows
 
-  set(ORACLE_OCI_NAMES clntsh libclntsh oci)
-  set(ORACLE_NNZ_NAMES nnz10 libnnz10 nnz11 libnnz11 ociw32)
+  set(ORACLE_OCI_NAMES clntsh libclntsh oci) # Dirty trick might help on OSX, see issues/89
   set(ORACLE_OCCI_NAMES libocci occi oraocci10 oraocci11)
+  set(ORACLE_NNZ_NAMES nnz10 libnnz10 nnz11 libnnz11 ociw32)
+  set(ORACLE_CLNTSH_NAMES clntsh libclntsh)
 
-  set(ORACLE_LIB_DIR 
+  set(ORACLE_LIB_DIR
+    ${ORACLE_HOME}
     ${ORACLE_HOME}/lib
-    ${ORACLE_HOME}/OCI/lib/MSVC) # Oracle XE on Windows
+    ${ORACLE_HOME}/sdk/lib       # Oracle SDK
+    ${ORACLE_HOME}/sdk/lib/msvc
+    ${ORACLE_HOME}/OCI/lib/msvc) # Oracle XE on Windows
 
-  find_library(ORACLE_OCI_LIBRARY  NAMES ${ORACLE_OCI_NAMES} PATHS ${ORACLE_LIB_DIR})
-  find_library(ORACLE_OCCI_LIBRARY NAMES ${ORACLE_OCCI_NAMES} PATHS ${ORACLE_LIB_DIR})
-  find_library(ORACLE_NNZ_LIBRARY NAMES ${ORACLE_NNZ_NAMES} PATHS ${ORACLE_LIB_DIR})
+  find_library(ORACLE_OCI_LIBRARY
+    NAMES ${ORACLE_OCI_NAMES} PATHS ${ORACLE_LIB_DIR})
+  find_library(ORACLE_OCCI_LIBRARY
+    NAMES ${ORACLE_OCCI_NAMES} PATHS ${ORACLE_LIB_DIR})
+  find_library(ORACLE_NNZ_LIBRARY
+    NAMES ${ORACLE_NNZ_NAMES} PATHS ${ORACLE_LIB_DIR})
+  find_library(ORACLE_CLNTSH_LIBRARY
+    NAMES ${ORACLE_CLNTSH_NAMES} PATHS ${ORACLE_LIB_DIR})
 
-  set(ORACLE_LIBRARY ${ORACLE_OCI_LIBRARY} ${ORACLE_OCCI_LIBRARY} ${ORACLE_NNZ_LIBRARY})
-
-  if(APPLE)
-    set(ORACLE_OCIEI_NAMES libociei ociei)
-
-    find_library(ORACLE_OCIEI_LIBRARY
-      NAMES libociei ociei
-      PATHS ${ORACLE_LIB_DIR})
-
-    if(ORACLE_OCIEI_LIBRARY)
-      set(ORACLE_LIBRARY ${ORACLE_LIBRARY} ${ORACLE_OCIEI_LIBRARY})
-    else(ORACLE_OCIEI_LIBRARY)
-      message(STATUS
-        "libociei.dylib is not found. It may cause crash if you are building BUNDLE")
-    endif()
-  endif()
+  set(ORACLE_LIBRARY 
+    ${ORACLE_OCI_LIBRARY} 
+    ${ORACLE_OCCI_LIBRARY} 
+    ${ORACLE_NNZ_LIBRARY})
+  if(NOT WIN32)
+	set(ORACLE_LIBRARY ${ORACLE_LIBRARY} ${ORACLE_CLNTSH_LIBRARY})
+  endif(NOT WIN32)
 
   set(ORACLE_LIBRARIES ${ORACLE_LIBRARY})
 

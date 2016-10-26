@@ -81,17 +81,6 @@ void oracle_vector_into_type_backend::define_by_pos(
             data = &v[0];
         }
         break;
-    case x_unsigned_long:
-        {
-            oracleType = SQLT_UIN;
-            size = sizeof(unsigned long);
-            std::vector<unsigned long> *vp
-                = static_cast<std::vector<unsigned long> *>(data);
-            std::vector<unsigned long> &v(*vp);
-            prepare_indicators(v.size());
-            data = &v[0];
-        }
-        break;
     case x_double:
         {
             oracleType = SQLT_FLT;
@@ -224,7 +213,7 @@ void oracle_vector_into_type_backend::post_fetch(bool gotData, indicator *ind)
             {
                 if (indOCIHolderVec_[i] != -1)
                 {
-                    v[i] = strtoll(pos, NULL, 10);
+                    v[i] = std::strtoll(pos, NULL, 10);
                 }
                 pos += colSize_;
             }
@@ -242,7 +231,7 @@ void oracle_vector_into_type_backend::post_fetch(bool gotData, indicator *ind)
             {
                 if (indOCIHolderVec_[i] != -1)
                 {
-                    v[i] = strtoull(pos, NULL, 10);
+                    v[i] = std::strtoull(pos, NULL, 10);
                 }
                 pos += colSize_;
             }
@@ -350,13 +339,6 @@ void oracle_vector_into_type_backend::resize(std::size_t sz)
             v->resize(sz);
         }
         break;
-    case x_unsigned_long:
-        {
-            std::vector<unsigned long> *v
-                = static_cast<std::vector<unsigned long> *>(data_);
-            v->resize(sz);
-        }
-        break;
     case x_long_long:
         {
             std::vector<long long> *v
@@ -420,13 +402,6 @@ std::size_t oracle_vector_into_type_backend::size()
     case x_integer:
         {
             std::vector<int> *v = static_cast<std::vector<int> *>(data_);
-            sz = v->size();
-        }
-        break;
-    case x_unsigned_long:
-        {
-            std::vector<unsigned long> *v
-                = static_cast<std::vector<unsigned long> *>(data_);
             sz = v->size();
         }
         break;

@@ -10,6 +10,7 @@
 #include "error.h"
 #include <soci-platform.h>
 #include <libpq/libpq-fs.h> // libpq
+#include <cassert>
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
@@ -18,7 +19,9 @@
 #include <sstream>
 
 #ifdef SOCI_POSTGRESQL_NOPARAMS
+#ifndef SOCI_POSTGRESQL_NOBINDBYNAME
 #define SOCI_POSTGRESQL_NOBINDBYNAME
+#endif // SOCI_POSTGRESQL_NOBINDBYNAME
 #endif // SOCI_POSTGRESQL_NOPARAMS
 
 #ifdef _MSC_VER
@@ -35,6 +38,12 @@ postgresql_statement_backend::postgresql_statement_backend(
        hasIntoElements_(false), hasVectorIntoElements_(false),
        hasUseElements_(false), hasVectorUseElements_(false)
 {
+}
+
+postgresql_statement_backend::~postgresql_statement_backend()
+{
+    if (statementName_.empty() == false)
+        session_.deallocate_prepared_statement(statementName_);
 }
 
 void postgresql_statement_backend::alloc()
@@ -84,6 +93,13 @@ void postgresql_statement_backend::prepare(std::string const & query,
                 if ((next_it != end) && (*next_it == ':'))
                 {
                     query_ += "::";
+                    ++it;
+                }
+                // Check whether this is an assignment(e.g. x:=y)
+                // and treat it as a special case, not as a named binding
+                else if ((next_it != end) && (*next_it == '='))
+                {
+                    query_ += ":=";
                     ++it;
                 }
                 else
@@ -154,20 +170,29 @@ void postgresql_statement_backend::prepare(std::string const & query,
 
     if (stType == st_repeatable_query)
     {
-        statementName_ = session_.get_next_statement_name();
+        assert(statementName_.empty());
 
-        PGresult * res = PQprepare(session_.conn_, statementName_.c_str(),
+        // Holding the name temporarily in this var because
+        // if it fails to prepare it we can't DEALLOCATE it. 
+        std::string statementName = session_.get_next_statement_name();
+
+        PGresult* result = PQprepare(session_.conn_, statementName.c_str(),
             query_.c_str(), static_cast<int>(names_.size()), NULL);
-        if (res == NULL)
+        if (result == NULL)
         {
             throw soci_error("Cannot prepare statement.");
         }
-        ExecStatusType status = PQresultStatus(res);
+        
+        ExecStatusType status = PQresultStatus(result);
         if (status != PGRES_COMMAND_OK)
         {
-            throw_postgresql_soci_error(res);
+            // releases result with PQclear
+            throw_postgresql_soci_error(result);
         }
-        PQclear(res);
+        PQclear(result);
+
+        // Now it's safe to save this info.
+        statementName_ = statementName;
     }
 
     stType_ = stType;
@@ -274,9 +299,7 @@ postgresql_statement_backend::execute(int number)
                 result_ = PQexecParams(session_.conn_, query_.c_str(),
                     static_cast<int>(paramValues.size()),
                     NULL, &paramValues[0], NULL, NULL, 0);
-
 #else
-
                 if (stType_ == st_repeatable_query)
                 {
                     // this query was separately prepared
@@ -312,6 +335,7 @@ postgresql_statement_backend::execute(int number)
                     ExecStatusType status = PQresultStatus(result_);
                     if (status != PGRES_COMMAND_OK)
                     {
+                        // releases result_ with PQclear
                         throw_postgresql_soci_error(result_);
                     }
                     PQclear(result_);
@@ -336,7 +360,6 @@ postgresql_statement_backend::execute(int number)
 
             result_ = PQexec(session_.conn_, query_.c_str());
 #else
-
             if (stType_ == st_repeatable_query)
             {
                 // this query was separately prepared
@@ -398,6 +421,7 @@ postgresql_statement_backend::execute(int number)
     }
     else
     {
+        // releases result_ with PQclear
         throw_postgresql_soci_error(result_);
 
         // dummy, never reach
@@ -445,7 +469,7 @@ long long postgresql_statement_backend::get_affected_rows()
 {
     const char * resultStr = PQcmdTuples(result_);
     char * end;
-    long long result = strtoll(resultStr, &end, 0);
+    long long result = std::strtoll(resultStr, &end, 0);
     if (end != resultStr)
     {
         return result;
@@ -497,6 +521,9 @@ void postgresql_statement_backend::describe_column(int colNum, data_type & type,
     case 2275: // cstring
     case 18:   // char
     case 1042: // bpchar
+    case 142: // xml
+    case 114:  // json
+    case 17: // bytea
         type = dt_string;
         break;
 
@@ -519,19 +546,21 @@ void postgresql_statement_backend::describe_column(int colNum, data_type & type,
     case 16:   // bool
     case 21:   // int2
     case 23:   // int4
+    case 26:   // oid
         type = dt_integer;
         break;
 
     case 20:   // int8
         type = dt_long_long;
         break;
-
-    case 26:   // oid
-        type = dt_unsigned_long;
-        break;
-
+    
     default:
-         throw soci_error("Unknown data type.");
+    {
+        std::stringstream message;
+        message << "unknown data type with typelem: " << typeOid << " for colNum: " << colNum << " with name: " << PQfname(result_, pos);
+        throw soci_error(message.str());
+        
+    }
     }
 
     columnName = PQfname(result_, pos);

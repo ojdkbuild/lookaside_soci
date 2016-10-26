@@ -17,7 +17,9 @@
 #include <sstream>
 
 #ifdef SOCI_POSTGRESQL_NOPARAMS
+#ifndef SOCI_POSTGRESQL_NOBINDBYNAME
 #define SOCI_POSTGRESQL_NOBINDBYNAME
+#endif // SOCI_POSTGRESQL_NOBINDBYNAME
 #endif // SOCI_POSTGRESQL_NOPARAMS
 
 using namespace soci;
@@ -113,13 +115,6 @@ void postgresql_vector_into_type_backend::post_fetch(bool gotData, indicator * i
                     set_invector_(data_, i, val);
                 }
                 break;
-            case x_unsigned_long:
-                {
-                    unsigned long const val =
-                        string_to_unsigned_integer<unsigned long>(buf);
-                    set_invector_(data_, i, val);
-                }
-                break;
             case x_long_long:
                 {
                     long long const val = string_to_integer<long long>(buf);
@@ -174,7 +169,7 @@ void resizevector_(void * p, std::size_t sz)
 
 void postgresql_vector_into_type_backend::resize(std::size_t sz)
 {
-    assert(sz < std::numeric_limits<unsigned short>::max()); // Not a strong constraint, for debugging only
+    assert(sz < 10*std::numeric_limits<unsigned short>::max()); // Not a strong constraint, for debugging only. Notice my fix is even worse
 
     switch (type_)
     {
@@ -187,9 +182,6 @@ void postgresql_vector_into_type_backend::resize(std::size_t sz)
         break;
     case x_integer:
         resizevector_<int>(data_, sz);
-        break;
-    case x_unsigned_long:
-        resizevector_<unsigned long>(data_, sz);
         break;
     case x_long_long:
         resizevector_<long long>(data_, sz);
@@ -225,9 +217,6 @@ std::size_t postgresql_vector_into_type_backend::size()
         break;
     case x_integer:
         sz = get_vector_size<int>(data_);
-        break;
-    case x_unsigned_long:
-        sz = get_vector_size<unsigned long>(data_);
         break;
     case x_long_long:
         sz = get_vector_size<long long>(data_);

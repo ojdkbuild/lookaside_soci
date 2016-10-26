@@ -83,15 +83,6 @@ void mysql_standard_use_type_backend::pre_use(indicator const *ind)
                 snprintf(buf_, bufSize, "%d", *static_cast<int*>(data_));
             }
             break;
-        case x_unsigned_long:
-            {
-                std::size_t const bufSize
-                    = std::numeric_limits<unsigned long>::digits10 + 2;
-                buf_ = new char[bufSize];
-                snprintf(buf_, bufSize, "%lu",
-                    *static_cast<unsigned long*>(data_));
-            }
-            break;
         case x_long_long:
             {
                 std::size_t const bufSize
@@ -100,9 +91,23 @@ void mysql_standard_use_type_backend::pre_use(indicator const *ind)
                 snprintf(buf_, bufSize, "%lld", *static_cast<long long *>(data_));
             }
             break;
+        case x_unsigned_long_long:
+            {
+                std::size_t const bufSize
+                    = std::numeric_limits<unsigned long long>::digits10 + 3;
+                buf_ = new char[bufSize];
+                snprintf(buf_, bufSize, "%llu",
+                         *static_cast<unsigned long long *>(data_));
+            }
+            break;
+
         case x_double:
             {
-                // no need to overengineer it (KISS)...
+                if (is_infinity_or_nan(*static_cast<double*>(data_))) {
+                    throw soci_error(
+                        "Use element used with infinity or NaN, which are "
+                        "not supported by the MySQL server.");
+                }
 
                 std::size_t const bufSize = 100;
                 buf_ = new char[bufSize];

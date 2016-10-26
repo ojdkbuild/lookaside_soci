@@ -19,7 +19,9 @@
 #include <sstream>
 
 #ifdef SOCI_POSTGRESQL_NOPARAMS
+#ifndef SOCI_POSTGRESQL_NOBINDBYNAME
 #define SOCI_POSTGRESQL_NOBINDBYNAME
+#endif // SOCI_POSTGRESQL_NOBINDBYNAME
 #endif // SOCI_POSTGRESQL_NOPARAMS
 
 using namespace soci;
@@ -105,12 +107,6 @@ void postgresql_standard_into_type_backend::post_fetch(
             {
                 int * dest = static_cast<int *>(data_);
                 *dest = string_to_integer<int>(buf);
-            }
-            break;
-        case x_unsigned_long:
-            {
-                unsigned long * dest = static_cast<unsigned long *>(data_);
-                *dest = string_to_unsigned_integer<unsigned long>(buf);
             }
             break;
         case x_long_long:

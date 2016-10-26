@@ -9,8 +9,12 @@
 #define SOCI_SESSION_H_INCLUDED
 
 #include "once-temp-type.h"
+#include "query_transformation.h"
+#include "connection-parameters.h"
+
 // std
 #include <cstddef>
+#include <memory>
 #include <ostream>
 #include <sstream>
 #include <string>
@@ -18,7 +22,7 @@
 namespace soci
 {
 class values;
-struct backend_factory;
+class backend_factory;
 
 namespace details
 {
@@ -34,8 +38,13 @@ class connection_pool;
 
 class SOCI_DECL session
 {
+private:
+
+    void set_query_transformation_(std::auto_ptr<details::query_transformation_function> qtf);
+
 public:
     session();
+    explicit session(connection_parameters const & parameters);
     session(backend_factory const & factory, std::string const & connectString);
     session(std::string const & backendName, std::string const & connectString);
     explicit session(std::string const & connectString);
@@ -43,6 +52,7 @@ public:
 
     ~session();
 
+    void open(connection_parameters const & parameters);
     void open(backend_factory const & factory, std::string const & connectString);
     void open(std::string const & backendName, std::string const & connectString);
     void open(std::string const & connectString);
@@ -62,6 +72,16 @@ public:
     details::once_temp_type operator<<(T const & t) { return once << t; }
 
     std::ostringstream & get_query_stream();
+    std::string get_query() const;
+
+    template <typename T>
+    void set_query_transformation(T callback)
+    {
+        std::auto_ptr<details::query_transformation_function> qtf(new details::query_transformation<T>(callback));
+        set_query_transformation_(qtf);
+
+        assert(qtf.get() == NULL);
+    }
 
     // support for basic logging
     void set_log_stream(std::ostream * s);
@@ -76,6 +96,21 @@ public:
     void uppercase_column_names(bool forceToUpper);
 
     bool get_uppercase_column_names() const;
+
+    // Functions for dealing with sequence/auto-increment values.
+
+    // If true is returned, value is filled with the next value from the given
+    // sequence. Otherwise either the sequence is invalid (doesn't exist) or
+    // the current backend doesn't support sequences. If you use sequences for
+    // automatically generating primary key values, you should use
+    // get_last_insert_id() after the insertion in this case.
+    bool get_next_sequence_value(std::string const & sequence, long & value);
+
+    // If true is returned, value is filled with the last auto-generated value
+    // for this table (although some backends ignore the table argument and
+    // return the last value auto-generated in this session).
+    bool get_last_insert_id(std::string const & table, long & value);
+
 
     // for diagnostics and advanced users
     // (downcast it to expected back-end session class)
@@ -92,12 +127,12 @@ private:
     session& operator=(session const &);
 
     std::ostringstream query_stream_;
+    details::query_transformation_function* query_transformation_;
 
     std::ostream * logStream_;
     std::string lastQuery_;
 
-    backend_factory const * lastFactory_;
-    std::string lastConnectString_;
+    connection_parameters lastConnectParameters_;
 
     bool uppercaseColumnNames_;
 

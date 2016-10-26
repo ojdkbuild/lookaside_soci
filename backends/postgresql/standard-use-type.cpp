@@ -19,7 +19,9 @@
 #include <sstream>
 
 #ifdef SOCI_POSTGRESQL_NOPARAMS
+#ifndef SOCI_POSTGRESQL_NOBINDBYNAME
 #define SOCI_POSTGRESQL_NOBINDBYNAME
+#endif // SOCI_POSTGRESQL_NOBINDBYNAME
 #endif // SOCI_POSTGRESQL_NOPARAMS
 
 #ifdef _MSC_VER
@@ -93,15 +95,6 @@ void postgresql_standard_use_type_backend::pre_use(indicator const * ind)
                 buf_ = new char[bufSize];
                 snprintf(buf_, bufSize, "%d",
                     *static_cast<int *>(data_));
-            }
-            break;
-        case x_unsigned_long:
-            {
-                std::size_t const bufSize
-                    = std::numeric_limits<unsigned long>::digits10 + 2;
-                buf_ = new char[bufSize];
-                snprintf(buf_, bufSize, "%lu",
-                    *static_cast<unsigned long *>(data_));
             }
             break;
         case x_long_long:

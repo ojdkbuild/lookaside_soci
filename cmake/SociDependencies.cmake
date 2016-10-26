@@ -19,18 +19,22 @@
 #
 # List of SOCI dependncies
 #
-set(SOCI_BACKENDS_ALL_DEPENDENCIES
-  Boost
+set(SOCI_BACKENDS_DB_DEPENDENCIES
   MySQL
   ODBC
   Oracle
   PostgreSQL
-  SQLite3)
+  SQLite3
+  Firebird
+  DB2)
+
+set(SOCI_BACKENDS_ALL_DEPENDENCIES
+  Boost
+  ${SOCI_BACKENDS_DB_DEPENDENCIES})
 
 #
 # Perform checks
 # 
-message(STATUS "")
 colormsg(_HIBLUE_ "Looking for SOCI dependencies:")
 
 macro(boost_external_report NAME)
@@ -66,8 +70,6 @@ option(WITH_VALGRIND "Run tests under valgrind" OFF)
 # Detect available dependencies
 #
 foreach(external ${SOCI_BACKENDS_ALL_DEPENDENCIES})
-
-  message(STATUS "")
   string(TOUPPER "${external}" EXTERNAL)
   option(WITH_${EXTERNAL} "Attempt to find and configure ${external}" ON)
   if(WITH_${EXTERNAL})
@@ -78,4 +80,3 @@ foreach(external ${SOCI_BACKENDS_ALL_DEPENDENCIES})
     colormsg(HIRED "${external}:" RED "disabled, since WITH_${EXTERNAL}=OFF")
   endif()
 endforeach()
-message(STATUS "")

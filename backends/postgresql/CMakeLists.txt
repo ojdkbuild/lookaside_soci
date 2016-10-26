@@ -1,3 +1,14 @@
+###############################################################################
+#
+# This file is part of CMake configuration for SOCI library
+#
+# Copyright (C) 2010 Mateusz Loskot <mateusz@loskot.net>
+# Distributed under the Boost Software License, Version 1.0.
+# (See accompanying file LICENSE_1_0.txt or copy at
+# http://www.boost.org/LICENSE_1_0.txt)
+#
+###############################################################################
+
 include(CMakeDependentOption)
 
 option(SOCI_POSTGRESQL_NOPARAMS
@@ -31,6 +42,10 @@ soci_backend(PostgreSQL
   HEADERS soci-postgresql.h common.h
   DESCRIPTION "SOCI backend for PostgreSQL database engine"
   AUTHORS "Maciej Sobczak, Stephen Hutton"
-  MAINTAINERS "Maciej Sobczak")
+  MAINTAINERS "Mateusz Loskot")
+
+boost_report_value(SOCI_POSTGRESQL_NOPARAMS)
+boost_report_value(SOCI_POSTGRESQL_NOBINDBYNAME)
+boost_report_value(SOCI_POSTGRESQL_NOPREPARE)
 
 add_subdirectory(test)

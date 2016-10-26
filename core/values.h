@@ -165,24 +165,39 @@ public:
     template <typename T>
     void set(std::string const & name, T const & value, indicator indic = i_ok)
     {
-        index_.insert(std::make_pair(name, uses_.size()));
-
-        indicator * pind = new indicator(indic);
-        indicators_.push_back(pind);
-
         typedef typename type_conversion<T>::base_type base_type;
-        base_type baseValue;
-        if (indic == i_ok)
+        if(index_.find(name) == index_.end())
         {
-            type_conversion<T>::to_base(value, baseValue, *pind);
+            index_.insert(std::make_pair(name, uses_.size()));
+
+            indicator * pind = new indicator(indic);
+            indicators_.push_back(pind);
+
+            base_type baseValue;
+            if (indic == i_ok)
+            {
+                type_conversion<T>::to_base(value, baseValue, *pind);
+            }
+
+            details::copy_holder<base_type> * pcopy =
+                    new details::copy_holder<base_type>(baseValue);
+            deepCopies_.push_back(pcopy);
+
+            uses_.push_back(new details::use_type<base_type>(
+                    pcopy->value_, *pind, name));
         }
-
-        details::copy_holder<base_type> * pcopy =
-            new details::copy_holder<base_type>(baseValue);
-        deepCopies_.push_back(pcopy);
-
-        uses_.push_back(new details::use_type<base_type>(
-                pcopy->value_, *pind, name));
+        else
+        {
+            size_t index = index_.find(name)->second;
+            *indicators_[index] = indic;
+            if (indic == i_ok)
+            {
+                type_conversion<T>::to_base(
+                        value,
+                        static_cast<details::copy_holder<base_type>*>(deepCopies_[index])->value_,
+                        *indicators_[index]);
+            }
+        }
     }
 
     template <typename T>
@@ -220,7 +235,7 @@ public:
 
 private:
 
-    //TODO To make values generally usable outside of TypeConversionS,
+    //TODO To make values generally usable outside of type_conversion's,
     // these should be reference counted smart pointers
     row * row_;
     std::vector<details::standard_use_type *> uses_;
@@ -233,7 +248,7 @@ private:
 
     bool uppercaseColumnNames_;
 
-    // When TypeConversion::to() is called, a values object is created
+    // When type_conversion::to() is called, a values object is created
     // without an underlying row object.  In that case, get_from_uses()
     // returns the underlying field values
     template <typename T>

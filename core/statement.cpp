@@ -55,7 +55,15 @@ statement_impl::statement_impl(prepare_temp_type const & prep)
 
     // prepare the statement
     query_ = prepInfo->get_query();
-    prepare(query_);
+    try
+    {
+        prepare(query_);
+    }
+    catch(...)
+    {
+        clean_up();
+        throw;
+    }
 
     define_and_bind();
 }
@@ -101,8 +109,12 @@ void statement_impl::bind(values & values)
                 std::size_t const pos = query_.find(placeholder);
                 if (pos != std::string::npos)
                 {
-                    const char nextChar = query_[pos + placeholder.size()];
-                    if (nextChar == ' ' || nextChar == ',' ||
+                    // Retrieve next char after placeholder
+                    // make sure we do not go out of range on the string
+                    const char nextChar = (pos + placeholder.size()) < query_.size() ?
+                                          query_[pos + placeholder.size()] : '\0';
+                    
+                    if (nextChar == ' ' || nextChar == ',' || nextChar == ';' ||
                         nextChar == '\0' || nextChar == ')')
                     {
                         int position = static_cast<int>(uses_.size());
@@ -495,16 +507,20 @@ bool statement_impl::resize_intos(std::size_t upperBound)
     // this function does not need to take into account the intosForRow_
     // elements, since they are never used for bulk operations
 
-    std::size_t rows = backEnd_->get_number_of_rows();
-    if (upperBound != 0 && upperBound < rows)
+    int rows = backEnd_->get_number_of_rows();
+    if (rows < 0)
     {
-        rows = upperBound;
+        rows = 0;
+    }
+    if (upperBound != 0 && upperBound < static_cast<std::size_t>(rows))
+    {
+        rows = static_cast<int>(upperBound);
     }
 
     std::size_t const isize = intos_.size();
     for (std::size_t i = 0; i != isize; ++i)
     {
-        intos_[i]->resize(rows);
+        intos_[i]->resize((std::size_t)rows);
     }
 
     return rows > 0 ? true : false;
@@ -598,12 +614,6 @@ void statement_impl::bind_into<dt_integer>()
 }
 
 template<>
-void statement_impl::bind_into<dt_unsigned_long>()
-{
-    into_row<unsigned long>();
-}
-
-template<>
 void statement_impl::bind_into<dt_long_long>()
 {
     into_row<long long>();
@@ -647,9 +657,6 @@ void statement_impl::describe()
             break;
         case dt_integer:
             bind_into<dt_integer>();
-            break;
-        case dt_unsigned_long:
-            bind_into<dt_unsigned_long>();
             break;
         case dt_long_long:
             bind_into<dt_long_long>();

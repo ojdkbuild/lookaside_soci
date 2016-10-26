@@ -7,6 +7,7 @@
 
 #define SOCI_ORACLE_SOURCE
 #include "soci-oracle.h"
+#include <connection-parameters.h>
 #include <backend-loader.h>
 #include <cctype>
 #include <cstdio>
@@ -25,7 +26,7 @@ using namespace soci::details;
 // uniform connect string
 void chop_connect_string(std::string const & connectString,
     std::string & serviceName, std::string & userName,
-    std::string & password, int & mode)
+    std::string & password, int & mode, bool & decimals_as_strings)
 {
     // transform the connect string into a sequence of tokens
     // separated by spaces, this is done by replacing each first '='
@@ -60,6 +61,7 @@ void chop_connect_string(std::string const & connectString,
     userName.clear();
     password.clear();
     mode = OCI_DEFAULT;
+    decimals_as_strings = false;
 
     std::istringstream iss(tmp);
     std::string key, value;
@@ -96,19 +98,26 @@ void chop_connect_string(std::string const & connectString,
                 throw soci_error("Invalid connection mode.");
             }
         }
+        else if (key == "decimals_as_strings")
+        {
+            decimals_as_strings = value == "1" || value == "Y" || value == "y";
+        }
     }
 }
 
 // concrete factory for Empty concrete strategies
 oracle_session_backend * oracle_backend_factory::make_session(
-     std::string const &connectString) const
+     connection_parameters const & parameters) const
 {
     std::string serviceName, userName, password;
     int mode;
+    bool decimals_as_strings;
 
-    chop_connect_string(connectString, serviceName, userName, password, mode);
+    chop_connect_string(parameters.get_connect_string(), serviceName, userName, password,
+            mode, decimals_as_strings);
 
-    return new oracle_session_backend(serviceName, userName, password, mode);
+    return new oracle_session_backend(serviceName, userName, password,
+            mode, decimals_as_strings);
 }
 
 oracle_backend_factory const soci::oracle;

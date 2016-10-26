@@ -63,15 +63,6 @@ void oracle_standard_use_type_backend::prepare_for_bind(
             data = buf_;
         }
         break;
-    case x_unsigned_long:
-        oracleType = SQLT_UIN;
-        size = sizeof(unsigned long);
-        if (readOnly)
-        {
-            buf_ = new char[size];
-            data = buf_;
-        }
-        break;
     case x_double:
         oracleType = SQLT_FLT;
         size = sizeof(double);
@@ -230,13 +221,6 @@ void oracle_standard_use_type_backend::pre_use(indicator const *ind)
             *static_cast<int *>(static_cast<void *>(buf_)) = *static_cast<int *>(data_);
         }
         break;
-    case x_unsigned_long:
-        if (readOnly_)
-        {
-            *static_cast<unsigned long *>(static_cast<void *>(buf_))
-                = *static_cast<unsigned long *>(data_);
-        }
-        break;
     case x_long_long:
         {
             size_t const size = 100; // arbitrary, but consistent with prepare_for_bind
@@ -355,24 +339,11 @@ void oracle_standard_use_type_backend::post_use(bool gotData, indicator *ind)
                 }
             }
             break;
-        case x_unsigned_long:
-            if (readOnly_)
-            {
-                const unsigned long original = *static_cast<unsigned long *>(data_);
-                const unsigned long bound
-                    = *static_cast<unsigned long *>(static_cast<void *>(buf_));
-
-                if (original != bound)
-                {
-                    throw soci_error("Attempted modification of const use element");
-                }
-            }
-            break;
         case x_long_long:
             if (readOnly_)
             {
                 long long const original = *static_cast<long long *>(data_);
-                long long const bound = strtoll(buf_, NULL, 10);
+                long long const bound = std::strtoll(buf_, NULL, 10);
 
                 if (original != bound)
                 {
@@ -384,7 +355,7 @@ void oracle_standard_use_type_backend::post_use(bool gotData, indicator *ind)
             if (readOnly_)
             {
                 unsigned long long const original = *static_cast<unsigned long long *>(data_);
-                unsigned long long const bound = strtoull(buf_, NULL, 10);
+                unsigned long long const bound = std::strtoull(buf_, NULL, 10);
 
                 if (original != bound)
                 {

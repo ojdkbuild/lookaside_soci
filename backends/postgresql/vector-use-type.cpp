@@ -17,7 +17,9 @@
 #include <sstream>
 
 #ifdef SOCI_POSTGRESQL_NOPARAMS
+#ifndef SOCI_POSTGRESQL_NOBINDBYNAME
 #define SOCI_POSTGRESQL_NOBINDBYNAME
+#endif // SOCI_POSTGRESQL_NOBINDBYNAME
 #endif // SOCI_POSTGRESQL_NOPARAMS
 
 #ifdef _MSC_VER
@@ -108,18 +110,6 @@ void postgresql_vector_use_type_backend::pre_use(indicator const * ind)
                     snprintf(buf, bufSize, "%d", v[i]);
                 }
                 break;
-            case x_unsigned_long:
-                {
-                    std::vector<unsigned long> * pv
-                        = static_cast<std::vector<unsigned long> *>(data_);
-                    std::vector<unsigned long> & v = *pv;
-
-                    std::size_t const bufSize
-                        = std::numeric_limits<unsigned long>::digits10 + 2;
-                    buf = new char[bufSize];
-                    snprintf(buf, bufSize, "%lu", v[i]);
-                }
-                break;
             case x_long_long:
                 {
                     std::vector<long long>* pv
@@ -208,9 +198,6 @@ std::size_t postgresql_vector_use_type_backend::size()
         break;
     case x_integer:
         sz = get_vector_size<int>(data_);
-        break;
-    case x_unsigned_long:
-        sz = get_vector_size<unsigned long>(data_);
         break;
     case x_long_long:
         sz = get_vector_size<long long>(data_);

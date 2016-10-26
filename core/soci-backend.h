@@ -21,11 +21,13 @@ namespace soci
 // data types, as seen by the user
 enum data_type
 {
-    dt_string, dt_date, dt_double, dt_integer, dt_unsigned_long, dt_long_long, dt_unsigned_long_long
+    dt_string, dt_date, dt_double, dt_integer, dt_long_long, dt_unsigned_long_long
 };
 
 // the enum type for indicator variables
 enum indicator { i_ok, i_null, i_truncated };
+
+class session;
 
 namespace details
 {
@@ -33,11 +35,17 @@ namespace details
 // data types, as used to describe exchange format
 enum exchange_type
 {
-    x_char, x_stdstring,
-    x_short, x_integer,
-    x_unsigned_long, x_long_long, x_unsigned_long_long,
-    x_double, x_stdtm, x_statement,
-    x_rowid, x_blob
+    x_char,
+    x_stdstring,
+    x_short,
+    x_integer,
+    x_long_long,
+    x_unsigned_long_long,
+    x_double,
+    x_stdtm,
+    x_statement,
+    x_rowid,
+    x_blob
 };
 
 // type of statement (used for optimizing statement preparation)
@@ -221,6 +229,21 @@ public:
     virtual void commit() = 0;
     virtual void rollback() = 0;
 
+    // At least one of these functions is usually not implemented for any given
+    // backend as RDBMS support either sequences or auto-generated values, so
+    // we don't declare them as pure virtuals to avoid having to define trivial
+    // versions of them in the derived classes. However every backend should
+    // define at least one of them to allow the code using auto-generated values
+    // to work.
+    virtual bool get_next_sequence_value(session&, std::string const&, long&)
+    {
+        return false;
+    }
+    virtual bool get_last_insert_id(session&, std::string const&, long&)
+    {
+        return false;
+    }
+
     virtual std::string get_backend_name() const = 0;
 
     virtual statement_backend* make_statement_backend() = 0;
@@ -237,13 +260,16 @@ private:
 
 // simple base class for the session back-end factory
 
-struct SOCI_DECL backend_factory
+class connection_parameters;
+
+class SOCI_DECL backend_factory
 {
-	backend_factory() {}
+public:
+    backend_factory() {}
     virtual ~backend_factory() {}
 
     virtual details::session_backend* make_session(
-        std::string const& connectString) const = 0;
+        connection_parameters const& parameters) const = 0;
 };
 
 } // namespace soci

@@ -43,6 +43,7 @@ struct oid_table_creator : public table_creator_base
 // whatever that means.
 void test1()
 {
+    try
     {
         session sql(backEnd, connectString);
 
@@ -76,8 +77,14 @@ void test1()
 
         assert(id == 7);
         assert(name == "John");
+        
+    	// Must not cause the application to crash.
+		statement st(sql);
+		st.prepare(""); // Throws an exception in some versions.
     }
-
+    catch(...)
+    {
+    }
     std::cout << "test 1 passed" << std::endl;
 }
 
@@ -99,6 +106,7 @@ public:
         sql  <<
             "create or replace function soci_test(msg varchar) "
             "returns varchar as $$ "
+            "declare x int := 1;"
             "begin "
             "  return msg; "
             "end $$ language plpgsql";
@@ -107,6 +115,7 @@ public:
        sql <<
             "create or replace function soci_test(varchar) "
             "returns varchar as \' "
+            "declare x int := 1;"
             "begin "
             "  return $1; "
             "end \' language plpgsql";
@@ -509,6 +518,187 @@ void test11()
     std::cout << "test 11 passed" << std::endl;
 }
 
+// test INSERT INTO ... RETURNING syntax
+
+struct table_creator_for_test12 : table_creator_base
+{
+    table_creator_for_test12(session & sql)
+        : table_creator_base(sql)
+    {
+        sql << "create table soci_test(sid serial, txt text)";
+    }
+};
+
+void test12()
+{
+    {
+        session sql(backEnd, connectString);
+
+        table_creator_for_test12 tableCreator(sql);
+
+        std::vector<long> ids(10);
+        for (std::size_t i = 0; i != ids.size(); i++)
+        {
+            long sid(0);
+            std::string txt("abc");
+            sql << "insert into soci_test(txt) values(:txt) returning sid", use(txt, "txt"), into(sid);
+            ids[i] = sid;
+        }
+        
+        std::vector<long> ids2(ids.size());
+        sql << "select sid from soci_test order by sid", into(ids2);
+        assert(std::equal(ids.begin(), ids.end(), ids2.begin()));
+    }
+
+    std::cout << "test 12 passed" << std::endl;
+}
+
+struct bytea_table_creator : public table_creator_base
+{
+    bytea_table_creator(session& sql)
+        : table_creator_base(sql)
+    {
+        sql << "drop table if exists soci_test;";
+        sql << "create table soci_test ( val bytea null )";
+    }
+};
+
+void test_bytea()
+{
+    {
+        session sql(backEnd, connectString);
+        bytea_table_creator tableCreator(sql);
+
+        int v = 0x0A0B0C0D;
+        unsigned char* b = reinterpret_cast<unsigned char*>(&v);
+        std::string data;
+        std::copy(b, b + sizeof(v), std::back_inserter(data));
+        {
+
+            sql << "insert into soci_test(val) values(:val)", use(data);
+
+            // 1) into string, no Oid mapping
+            std::string bin1;
+            sql << "select val from soci_test", into(bin1);
+            assert(bin1 == "\\x0d0c0b0a");
+
+            // 2) Oid-to-dt_string mapped
+            row r;
+            sql << "select * from soci_test", into(r);
+
+            assert(r.size() == 1);
+            column_properties const& props = r.get_properties(0);
+            assert(props.get_data_type() == soci::dt_string);
+            std::string bin2 = r.get<std::string>(0);
+            assert(bin2 == "\\x0d0c0b0a");
+        }
+    }
+    std::cout << "test bytea passed" << std::endl;
+}
+
+// json
+struct table_creator_json : public table_creator_base
+{
+    table_creator_json(session& sql)
+    : table_creator_base(sql)
+    {
+        sql << "drop table if exists soci_json_test;";
+        sql << "create table soci_json_test(data json)";
+    }
+};
+
+// Return 9,2 for 9.2.3
+typedef std::pair<int,int> server_version;
+
+server_version get_postgresql_version(session& sql)
+{
+    std::string version;
+    std::pair<int,int> result;
+    sql << "select version()",into(version);
+    if (sscanf(version.c_str(),"PostgreSQL %i.%i", &result.first, &result.second) < 2)
+    {
+        throw std::runtime_error("Failed to retrieve PostgreSQL version number");
+    }
+    return result;
+}
+
+// Test JSON. Only valid for PostgreSQL Server 9.2++
+void test_json()
+{
+    session sql(backEnd, connectString);
+    server_version version = get_postgresql_version(sql);
+    if ( version >= server_version(9,2))
+    {
+        bool exception = false;
+        std::string result;
+        std::string valid_input = "{\"tool\":\"soci\",\"result\":42}";
+        std::string invalid_input = "{\"tool\":\"other\",\"result\":invalid}";
+
+        table_creator_json tableCreator(sql);
+
+        sql << "insert into soci_json_test (data) values(:data)",use(valid_input);
+        sql << "select data from  soci_json_test",into(result);
+        assert(result == valid_input);
+
+        try
+        {
+            sql << "insert into soci_json_test (data) values(:data)",use(invalid_input);
+        }
+        catch(soci_error& e)
+        {
+            (void)e;
+            exception = true;
+        }
+        assert(exception);
+        std::cout << "test json passed" << std::endl;
+    }
+    else
+    {
+    std::cout << "test json skipped (PostgreSQL >= 9.2 required, found " << version.first << "." << version.second << ")" << std::endl;
+    }
+}
+
+struct table_creator_text : public table_creator_base
+{
+    table_creator_text(session& sql) : table_creator_base(sql)
+    {
+        sql << "drop table if exists soci_test;";
+        sql << "create table soci_test(name varchar(20))";
+    }
+};
+
+// Test deallocate_prepared_statement called for non-existing statement
+// which creation failed due to invalid SQL syntax.
+// https://github.com/SOCI/soci/issues/116
+void test_statement_prepare_failure()
+{
+    {
+        session sql(backEnd, connectString);
+        table_creator_text tableCreator(sql);
+
+        try
+        {
+            // types mismatch should lead to PQprepare failure
+            statement get_trades =
+                (sql.prepare 
+                    << "select * from soci_test where name=9999");
+            assert(false);
+        }
+        catch(soci_error const& e)
+        {
+            std::string const msg(e.what());
+            // poor-man heuristics
+            assert(msg.find("prepared statement") == std::string::npos);
+            assert(msg.find("operator does not exist") != std::string::npos);
+        }
+    }
+    std::cout << "test_statement_prepare_failure passed" << std::endl;
+}
+
+//
+// Support for soci Common Tests
+//
+
 // DDL Creation objects for common tests
 struct table_creator_one : public table_creator_base
 {
@@ -542,10 +732,16 @@ struct table_creator_three : public table_creator_base
     }
 };
 
-//
-// Support for soci Common Tests
-//
+struct table_creator_for_get_affected_rows : table_creator_base
+{
+    table_creator_for_get_affected_rows(session & sql)
+        : table_creator_base(sql)
+    {
+        sql << "create table soci_test(val integer)";
+    }
+};
 
+// Common tests context
 class test_context : public test_context_base
 {
 public:
@@ -568,12 +764,16 @@ public:
         return new table_creator_three(s);
     }
 
+    table_creator_base* table_creator_4(session& s) const
+    {
+        return new table_creator_for_get_affected_rows(s);
+    }
+
     std::string to_date_time(std::string const &datdt_string) const
     {
         return "timestamptz(\'" + datdt_string + "\')";
     }
 };
-
 
 int main(int argc, char** argv)
 {
@@ -606,24 +806,27 @@ int main(int argc, char** argv)
         common_tests tests(tc);
         tests.run();
 
-        std::cout << "\nSOCI Postgres Tests:\n\n";
+        std::cout << "\nSOCI PostgreSQL Tests:\n\n";
         test1();
         test2();
         test3();
         test4();
         test4ul();
         test5();
-
-//         test6();
+        //test6();
         std::cout << "test 6 skipped (dynamic backend)\n";
-
         test7();
         test8();
         test9();
         test10();
         test11();
+        test12();
+        test_bytea();
+        test_json();
+        test_statement_prepare_failure();
 
         std::cout << "\nOK, all tests passed.\n\n";
+
         return EXIT_SUCCESS;
     }
     catch (std::exception const & e)

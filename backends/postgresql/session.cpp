@@ -8,6 +8,7 @@
 #define SOCI_POSTGRESQL_SOURCE
 #include "soci-postgresql.h"
 #include "error.h"
+#include <connection-parameters.h>
 #include <libpq/libpq-fs.h> // libpq
 #include <cctype>
 #include <cstdio>
@@ -16,7 +17,9 @@
 #include <sstream>
 
 #ifdef SOCI_POSTGRESQL_NOPARAMS
-#define SOCI_PGSQL_NOBINDBYNAME
+#ifndef SOCI_POSTGRESQL_NOBINDBYNAME
+#define SOCI_POSTGRESQL_NOBINDBYNAME
+#endif // SOCI_POSTGRESQL_NOBINDBYNAME
 #endif // SOCI_POSTGRESQL_NOPARAMS
 
 #ifdef _MSC_VER
@@ -27,10 +30,11 @@ using namespace soci;
 using namespace soci::details;
 using namespace soci::details::postgresql;
 
-postgresql_session_backend::postgresql_session_backend(std::string const& connectString)
+postgresql_session_backend::postgresql_session_backend(
+    connection_parameters const& parameters)
     : statementCount_(0)
 {
-    PGconn* conn = PQconnectdb(connectString.c_str());
+    PGconn* conn = PQconnectdb(parameters.get_connect_string().c_str());
     if (0 == conn || CONNECTION_OK != PQstatus(conn))
     {
         std::string msg = "Cannot establish connection to the database.";
@@ -55,11 +59,10 @@ postgresql_session_backend::~postgresql_session_backend()
 namespace // unnamed
 {
 
-// helper function for hardoded queries
+// helper function for hardcoded queries
 void hard_exec(PGconn * conn, char const * query, char const * errMsg)
 {
     PGresult* result = PQexec(conn, query);
-
     if (0 == result)
     {
         throw soci_error(errMsg);
@@ -68,6 +71,7 @@ void hard_exec(PGconn * conn, char const * query, char const * errMsg)
     ExecStatusType const status = PQresultStatus(result);
     if (PGRES_COMMAND_OK != status)
     {
+        // releases result with PQclear
         throw_postgresql_soci_error(result);
     }
 
@@ -89,6 +93,15 @@ void postgresql_session_backend::commit()
 void postgresql_session_backend::rollback()
 {
     hard_exec(conn_, "ROLLBACK", "Cannot rollback transaction.");
+}
+
+void postgresql_session_backend::deallocate_prepared_statement(
+    const std::string & statementName)
+{
+    const std::string & query = "DEALLOCATE " + statementName;
+
+    hard_exec(conn_, query.c_str(),
+        "Cannot deallocate prepared statement.");
 }
 
 void postgresql_session_backend::clean_up()

@@ -1,4 +1,4 @@
-################################################################################
+###############################################################################
 #
 # This file is part of CMake configuration for SOCI library
 #
@@ -7,10 +7,9 @@
 # (See accompanying file LICENSE_1_0.txt or copy at
 # http://www.boost.org/LICENSE_1_0.txt)
 #
-################################################################################
+###############################################################################
 
 colormsg(_HIBLUE_ "Configuring SOCI core library:")
-message(STATUS "")
 
 # Core dependencies
 set(SOCI_CORE_DEPENDENCIES)
@@ -43,7 +42,7 @@ if(Boost_FOUND)
 
   if(Boost_DATE_TIME_FOUND)
     list(APPEND SOCI_CORE_DEPENDENCIES ${Boost_DATE_TIME_LIBRARY})
-	list(APPEND SOCI_COMPILE_DEFINITIONS "HAVE_BOOST_DATE_TIME=1")
+    list(APPEND SOCI_COMPILE_DEFINITIONS "HAVE_BOOST_DATE_TIME=1")
   endif()
 
   set_property(DIRECTORY ${CMAKE_SOURCE_DIR}
@@ -71,6 +70,11 @@ set(SOCI_CORE_TARGET ${PROJECTNAMEL}_core)
 
 soci_target_output_name(${SOCI_CORE_TARGET} SOCI_CORE_TARGET_OUTPUT_NAME)
 
+# Configure SOCI backend loader to also use default install directory.
+set_directory_properties(PROPERTIES INCLUDE_DIRECTORIES ${CMAKE_CURRENT_BINARY_DIR})
+set_property(DIRECTORY ${CMAKE_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES ${CMAKE_CURRENT_BINARY_DIR})
+configure_file(soci_backends_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/soci_backends_config.h)
+
 #
 # Core shared library
 #
@@ -90,6 +94,7 @@ else()
     PROPERTIES
     VERSION ${SOCI_VERSION}
     SOVERSION ${SOCI_SOVERSION}
+    INSTALL_NAME_DIR ${CMAKE_INSTALL_PREFIX}/lib
     CLEAN_DIRECT_OUTPUT 1)
 endif()
 add_definitions(-DSOCI_LIB_PREFIX="${CMAKE_SHARED_LIBRARY_PREFIX}soci_"
@@ -98,19 +103,23 @@ add_definitions(-DSOCI_LIB_PREFIX="${CMAKE_SHARED_LIBRARY_PREFIX}soci_"
 #
 # Core static library
 #
-add_library(${SOCI_CORE_TARGET}-static STATIC ${SOCI_CORE_HEADERS} ${SOCI_CORE_SOURCES})
+if (SOCI_STATIC)
+  set(SOCI_CORE_TARGET_STATIC ${SOCI_CORE_TARGET}_static)
 
-set_target_properties(${SOCI_CORE_TARGET}-static
-  PROPERTIES
-  OUTPUT_NAME ${SOCI_CORE_TARGET_OUTPUT_NAME}
-  PREFIX "lib"
-  CLEAN_DIRECT_OUTPUT 1)
+  add_library(${SOCI_CORE_TARGET_STATIC} STATIC ${SOCI_CORE_HEADERS} ${SOCI_CORE_SOURCES})
+
+  set_target_properties(${SOCI_CORE_TARGET_STATIC}
+    PROPERTIES
+    OUTPUT_NAME ${SOCI_CORE_TARGET_OUTPUT_NAME}
+    PREFIX "lib"
+    CLEAN_DIRECT_OUTPUT 1)
+endif()
 
 #
 # Core installation
 #
 install(FILES ${SOCI_CORE_HEADERS} DESTINATION ${INCLUDEDIR}/${PROJECTNAMEL})
-install(TARGETS ${SOCI_CORE_TARGET} ${SOCI_CORE_TARGET}-static
+install(TARGETS ${SOCI_CORE_TARGET} ${SOCI_CORE_TARGET_STATIC}
   RUNTIME DESTINATION ${BINDIR}
   LIBRARY DESTINATION ${LIBDIR}
   ARCHIVE DESTINATION ${LIBDIR})
@@ -126,4 +135,7 @@ soci_report_directory_property(COMPILE_DEFINITIONS)
 
 # Export core target name to make it visible by backends
 set(SOCI_CORE_TARGET ${SOCI_CORE_TARGET} PARENT_SCOPE)
+if (SOCI_STATIC)
+  set(SOCI_CORE_TARGET_STATIC ${SOCI_CORE_TARGET_STATIC} PARENT_SCOPE)
+endif()
 set(SOCI_CORE_STATIC_DEPENDENCIES ${SOCI_CORE_DEPENDENCIES} PARENT_SCOPE)

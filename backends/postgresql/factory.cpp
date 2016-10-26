@@ -11,7 +11,9 @@
 #include <libpq/libpq-fs.h> // libpq
 
 #ifdef SOCI_POSTGRESQL_NOPARAMS
+#ifndef SOCI_POSTGRESQL_NOBINDBYNAME
 #define SOCI_POSTGRESQL_NOBINDBYNAME
+#endif // SOCI_POSTGRESQL_NOBINDBYNAME
 #endif // SOCI_POSTGRESQL_NOPARAMS
 
 #ifdef _MSC_VER
@@ -23,9 +25,9 @@ using namespace soci::details;
 
 // concrete factory for Empty concrete strategies
 postgresql_session_backend * postgresql_backend_factory::make_session(
-     std::string const & connectString) const
+     connection_parameters const & parameters) const
 {
-     return new postgresql_session_backend(connectString);
+     return new postgresql_session_backend(parameters);
 }
 
 postgresql_backend_factory const soci::postgresql;
