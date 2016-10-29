@@ -107,7 +107,7 @@ void sqlite3_standard_into_type_backend::post_fetch(bool gotData,
         case x_long_long:
             {
                 long long* dest = static_cast<long long*>(data_);
-                *dest = std::strtoll(buf, NULL, 10);
+                *dest = string_to_integer<long long>(buf);
             }
             break;
         case x_unsigned_long_long:
@@ -136,7 +136,7 @@ void sqlite3_standard_into_type_backend::post_fetch(bool gotData,
 
                 rowid *rid = static_cast<rowid *>(data_);
                 sqlite3_rowid_backend *rbe = static_cast<sqlite3_rowid_backend *>(rid->get_backend());
-                long long val = std::strtoll(buf, NULL, 10);
+                long long val = string_to_integer<long long>(buf);
                 rbe->value_ = static_cast<unsigned long>(val);
             }
             break;
