@@ -477,7 +477,6 @@ long long postgresql_statement_backend::get_affected_rows()
     // PQcmdTuples() doesn't really modify the result but it takes a non-const
     // pointer to it, so we can't rely on implicit conversion here.
     const char * const resultStr = PQcmdTuples(result_.get_result());
-    char * end;
     long long result = string_to_integer<long long>(resultStr);
     if (-1 != result)
     {
