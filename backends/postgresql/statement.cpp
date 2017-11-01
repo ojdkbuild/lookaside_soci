@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <limits>
 #include <sstream>
 
 #ifdef SOCI_POSTGRESQL_NOPARAMS
@@ -447,14 +448,38 @@ postgresql_statement_backend::fetch(int number)
     }
 }
 
+// helper function for parsing integers
+template <typename T>
+T string_to_integer(char const * buf)
+{
+    long long t(0);
+    int n(0);
+    int const converted = std::sscanf(buf, "%" LL_FMT_FLAGS "d%n", &t, &n);
+    if (converted == 1 && static_cast<std::size_t>(n) == std::strlen(buf))
+    {
+        // successfully converted to long long
+        // and no other characters were found in the buffer
+
+        const T max = (std::numeric_limits<T>::max)();
+        const T min = (std::numeric_limits<T>::min)();
+        if (t <= static_cast<long long>(max) &&
+            t >= static_cast<long long>(min))
+        {
+            return static_cast<T>(t);
+        }
+    }
+
+    return -1;
+}
+
 long long postgresql_statement_backend::get_affected_rows()
 {
     // PQcmdTuples() doesn't really modify the result but it takes a non-const
     // pointer to it, so we can't rely on implicit conversion here.
     const char * const resultStr = PQcmdTuples(result_.get_result());
     char * end;
-    long long result = std::strtoll(resultStr, &end, 0);
-    if (end != resultStr)
+    long long result = string_to_integer<long long>(resultStr);
+    if (-1 != result)
     {
         return result;
     }
